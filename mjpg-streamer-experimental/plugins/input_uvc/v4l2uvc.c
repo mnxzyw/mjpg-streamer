@@ -213,6 +213,8 @@ int init_videoIn(struct vdIn *vd, char *device, int width,
     /* alloc a temp buffer to reconstruct the pict */
     vd->framesizeIn = (vd->width * vd->height << 1);
     switch(vd->formatIn) {
+    case V4L2_PIX_FMT_JPEG:
+        // Fall-through intentional
     case V4L2_PIX_FMT_MJPEG: // in JPG mode the frame size is varies at every frame, so we allocate a bit bigger buffer
         vd->tmpbuffer = (unsigned char *) calloc(1, (size_t) vd->framesizeIn);
         if(!vd->tmpbuffer)
@@ -324,8 +326,10 @@ static int init_v4l2(struct vdIn *vd)
       fcc2s(fmtStringRequested,8,vd->formatIn);
       fprintf(stderr, " i: Could not obtain the requested pixelformat: %s , driver gave us: %s\n",fmtStringRequested,fmtStringObtained);
       fprintf(stderr, "    ... will try to handle this by checking against supported formats. \n");
-      
+
       switch(vd->fmt.fmt.pix.pixelformat){
+      case V4L2_PIX_FMT_JPEG:
+	// Fall-through intentional
       case V4L2_PIX_FMT_MJPEG:
 	fprintf(stderr, "    ... Falling back to the faster MJPG mode (consider changing cmd line options).\n");
 	vd->formatIn = vd->fmt.fmt.pix.pixelformat;
@@ -375,23 +379,6 @@ static int init_v4l2(struct vdIn *vd)
                 } else {
                     if (vd->fps != setfps->parm.capture.timeperframe.denominator) {
                         IPRINT("FPS coerced ......: from %d to %d\n", vd->fps, setfps->parm.capture.timeperframe.denominator);
-                    }
-
-                    // if we selecting lower FPS than the allowed then we will use software framedropping
-                    if (vd->fps < setfps->parm.capture.timeperframe.denominator) {
-                        vd->soft_framedrop = 1;
-                        vd->frame_period_time = 1000/vd->fps; // calcualate frame period time in ms
-                        IPRINT("Frame period time ......: %ld ms\n", vd->frame_period_time);
-
-                        // set FPS to maximum in order to minimize the lagging
-                        memset(setfps, 0, sizeof(struct v4l2_streamparm));
-                        setfps->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-                        setfps->parm.capture.timeperframe.numerator = 1;
-                        setfps->parm.capture.timeperframe.denominator = 255;
-                        ret = xioctl(vd->fd, VIDIOC_S_PARM, setfps);
-                        if (ret) {
-                            perror("Unable to set the FPS\n");
-                        }
                     }
                 }
             } else {
@@ -564,12 +551,14 @@ int uvcGrab(struct vdIn *vd)
     }
 
     switch(vd->formatIn) {
+    case V4L2_PIX_FMT_JPEG:
+        // Fall-through intentional
     case V4L2_PIX_FMT_MJPEG:
         if(vd->buf.bytesused <= HEADERFRAME1) {
             /* Prevent crash
-                                                        * on empty image */
+             * on empty image */
             fprintf(stderr, "Ignoring empty buffer ...\n");
-            return 0;
+            break;
         }
 
         /* memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], vd->buf.bytesused);
@@ -583,18 +572,21 @@ int uvcGrab(struct vdIn *vd)
         vd->tmpbytesused = vd->buf.bytesused;
         vd->tmptimestamp = vd->buf.timestamp;
 
-        if(debug)
+        if(debug) {
             fprintf(stderr, "bytes in used %d \n", vd->buf.bytesused);
+        }
         break;
     case V4L2_PIX_FMT_RGB565:
     case V4L2_PIX_FMT_YUYV:
     case V4L2_PIX_FMT_UYVY:
-        if(vd->buf.bytesused > vd->framesizeIn)
+        if(vd->buf.bytesused > vd->framesizeIn) {
             memcpy(vd->framebuffer, vd->mem[vd->buf.index], (size_t) vd->framesizeIn);
-        else
+        } else {
             memcpy(vd->framebuffer, vd->mem[vd->buf.index], (size_t) vd->buf.bytesused);
+        }
+        vd->tmpbytesused = vd->buf.bytesused;
+        vd->tmptimestamp = vd->buf.timestamp;
         break;
-
     default:
         goto err;
         break;

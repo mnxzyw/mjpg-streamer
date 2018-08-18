@@ -39,7 +39,7 @@ Output plugins:
 
 * output_file
 * output_http ([documentation](mjpg-streamer-experimental/plugins/output_http/README.md))
-* output_rtsp
+* ~output_rtsp~ (not functional)
 * output_udp
 * output_viewer ([documentation](mjpg-streamer-experimental/plugins/output_viewer/README.md))
 
@@ -64,6 +64,7 @@ By default, everything will be compiled in "release" mode. If you wish to compil
 with debugging symbols enabled, you can do this:
 
     cd mjpg-streamer-experimental
+    make distclean
     make CMAKE_BUILD_TYPE=Debug
     sudo make install
     
@@ -71,12 +72,12 @@ Advanced compilation (via CMake)
 --------------------------------
 
 There are options available to enable/disable plugins, setup options, etc. This
-shows the basic steps.
+shows the basic steps to enable the experimental HTTP management feature:
 
     cd mjpg-streamer-experimental
     mkdir _build
     cd _build
-    cmake ..
+    cmake -DENABLE_HTTP_MANAGEMENT=ON ..
     make
     sudo make install
 
